@@ -65,6 +65,8 @@ import { canOpenSessionInTerminal, canOpenSessionWindow, openSessionInTerminal }
 
 import type { SessionTitleResponse } from '../../types'
 
+import { useTriageMenuItems } from './triage-actions'
+
 // Rename a session, preferring the gateway's session.title RPC over REST.
 //
 // A freshly *branched* session (and any brand-new chat) lives only in the
@@ -418,6 +420,8 @@ function useSessionActions({
     })
   ]
 
+  const triageItems = useTriageMenuItems(sessionId, surface === 'row' && !archived)
+
   // WORK — derive/extract from the session.
   const workItems: ActionItemSpec[] = [
     spec({
@@ -575,6 +579,7 @@ function useSessionActions({
         text={sessionId}
       />
       <kit.Separator />
+      {triageItems.map(item => renderActionItem(kit, item))}
       {workItems.map(item => renderActionItem(kit, item))}
       <kit.Sub>
         <kit.SubTrigger disabled={!sessionId}>

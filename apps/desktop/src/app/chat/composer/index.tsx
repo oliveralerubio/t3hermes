@@ -1,3 +1,5 @@
+import '../machine-profile/register'
+
 import { ComposerPrimitive } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import {

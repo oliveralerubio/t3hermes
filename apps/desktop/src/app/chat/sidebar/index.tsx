@@ -191,6 +191,7 @@ import {
 import { buildSessionByAnyId, resolvePinnedSessions } from './session-index'
 import { SidebarSessionsSection, VIRTUALIZE_THRESHOLD } from './sessions-section'
 import { CONTEXT_SPLIT_KIT, SplitSubmenu } from './split-submenu'
+import { TriageTrays, useTriageSplit } from './triage-trays'
 import { useEnteredProjectSessions } from './use-entered-project-sessions'
 import { useServerSessionSearch } from './use-server-session-search'
 
@@ -1377,7 +1378,9 @@ export function ChatSidebar({
 
   // The flat Sessions list always shows ALL recent sessions; Projects is a
   // parallel grouped view, not a filter on this one — nothing is hidden here.
-  const displayAgentSessions = agentSessions
+  const triageEnabled = !agentsGrouped && !inProject && !showArchived && !ownerGrouped
+  const triageSplit = useTriageSplit(agentSessions, triageEnabled)
+  const displayAgentSessions = triageSplit.main
 
   // Pagination is scope-aware. In "All profiles" mode it tracks the global
   // unified set; scoped to one profile it tracks that profile's own truncation
@@ -1821,7 +1824,9 @@ export function ChatSidebar({
                           ? s.noFilterMatches
                           : pinnedSessions.length > 0
                             ? s.allPinned
-                            : s.noSessions}
+                            : triageEnabled && agentSessions.length > 0
+                              ? s.triage.allCaughtUp
+                              : s.noSessions}
                     </div>
                   )
                 }
@@ -2054,6 +2059,16 @@ export function ChatSidebar({
         )}
 
         {!showSessionSections && <SidebarBlankState onNewProject={openProjectCreate} />}
+
+        {!trimmedQuery && triageEnabled && (
+          <TriageTrays
+            activeSessionId={activeSidebarSessionId}
+            onArchiveSession={onArchiveSession}
+            onDeleteSession={onDeleteSession}
+            onResumeSession={onResumeSession}
+            split={triageSplit}
+          />
+        )}
 
         {/* Off, the statusbar's profile dropdown (beside the gateway switcher)
             takes over — the rail is a duplicate door for bot-only setups. */}
