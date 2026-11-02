@@ -11,6 +11,7 @@ import {
   $sidebarSettledOpen,
   $sidebarSnoozedOpen,
   $threadTriage,
+  AUTO_SETTLE_AFTER_MS,
   classify,
   setSidebarSettledOpen,
   setSidebarSnoozedOpen,
@@ -23,13 +24,14 @@ import {
   unsnoozeSession
 } from './thread-triage'
 
-function makeSession(id: string, overrides: Partial<SessionInfo> = {}): SessionInfo {
-  return {
-    id,
-    last_active: 1000,
-    started_at: 1000,
-    ...overrides
-  } as SessionInfo
+const NOW = 1_700_000_000_000
+const HOUR = 3_600_000
+
+/** A session last active `agoMs` before NOW (last_active is epoch seconds). */
+function makeSession(id: string, agoMs = HOUR, overrides: Partial<SessionInfo> = {}): SessionInfo {
+  const at = Math.floor((NOW - agoMs) / 1000)
+
+  return { id, last_active: at, started_at: at, ...overrides } as SessionInfo
 }
 
 describe('thread-triage store and classify', () => {
@@ -44,23 +46,46 @@ describe('thread-triage store and classify', () => {
   })
 
   describe('classify', () => {
-    const now = 1_700_000_000_000
+    const now = NOW
+    const old = AUTO_SETTLE_AFTER_MS + HOUR
 
-    it('defaults an untouched session to working', () => {
-      expect(classify(makeSession('s1'), {}, [], now)).toBe('working')
+    it('puts a running session in the working tray, never the main list', () => {
+      expect(classify(makeSession('s1'), {}, ['s1'], now)).toBe('working')
+      expect(classify(makeSession('s1'), {}, new Set(['s1']), now)).toBe('working')
+      expect(classify(makeSession('s1', old), {}, ['s1'], now)).toBe('working')
     })
 
-    it('classifies an explicitly settled session as settled when not working or snoozed', () => {
+    it('keeps a recently finished session in the main list', () => {
+      expect(classify(makeSession('s1'), {}, [], now)).toBe('main')
+    })
+
+    it('auto-settles a finished session idle for more than 24h', () => {
+      expect(classify(makeSession('s1', old), {}, [], now)).toBe('settled')
+      expect(classify(makeSession('s1', AUTO_SETTLE_AFTER_MS - HOUR), {}, [], now)).toBe('main')
+    })
+
+    it('never auto-settles an unread or needs-input session', () => {
+      expect(classify(makeSession('s1', old), {}, [], now, { needsAttention: true })).toBe('main')
+    })
+
+    it('settles immediately on an explicit settle, even when recent', () => {
       const triage = { s1: { settledAt: now - 5_000 } }
 
       expect(classify(makeSession('s1'), triage, [], now)).toBe('settled')
+      expect(classify(makeSession('s1'), triage, [], now, { needsAttention: true })).toBe('settled')
     })
 
-    it('classifies a session in workingIds as working even if settled is present in triage map', () => {
-      const triage = { s1: { settledAt: now - 5_000 } }
+    it('returns a settled session to main when new activity lands after settledAt', () => {
+      const triage = { s1: { settledAt: now - 2 * HOUR } }
 
-      expect(classify(makeSession('s1'), triage, ['s1'], now)).toBe('working')
-      expect(classify(makeSession('s1'), triage, new Set(['s1']), now)).toBe('working')
+      expect(classify(makeSession('s1', HOUR), triage, [], now)).toBe('main')
+    })
+
+    it('keeps a moved-back old session in main until 24h of new idleness', () => {
+      const triage = { s1: { unsettledAt: now - HOUR } }
+
+      expect(classify(makeSession('s1', old), triage, [], now)).toBe('main')
+      expect(classify(makeSession('s1', old), triage, [], now + AUTO_SETTLE_AFTER_MS)).toBe('settled')
     })
 
     it('classifies a session with snoozedUntil > now as snoozed (highest precedence)', () => {
@@ -70,22 +95,27 @@ describe('thread-triage store and classify', () => {
       expect(classify(makeSession('s1'), triage, ['s1'], now)).toBe('snoozed')
     })
 
-    it('falls back to settled or working once snoozedUntil <= now', () => {
+    it('falls back to settled or main once snoozedUntil <= now', () => {
       const expiredSettled = { s1: { settledAt: now - 5_000, snoozedUntil: now } }
       const expiredUnsettled = { s1: { snoozedUntil: now - 1 } }
 
       expect(classify(makeSession('s1'), expiredSettled, [], now)).toBe('settled')
-      expect(classify(makeSession('s1'), expiredUnsettled, [], now)).toBe('working')
+      expect(classify(makeSession('s1'), expiredUnsettled, [], now)).toBe('main')
+    })
+
+    it('does not auto-settle an id-only lookup (no activity known)', () => {
+      expect(classify('s1', {}, [], now)).toBe('main')
+      expect(classify('s1', { s1: { settledAt: now } }, [], now)).toBe('settled')
     })
 
     it('matches lineage root and lineage aliases on compressed sessions', () => {
-      const compressed = makeSession('tip-2', {
+      const compressed = makeSession('tip-2', old, {
         _lineage_ids: ['root-1', 'mid-1', 'tip-2'],
         _lineage_root_id: 'root-1'
       })
 
-      expect(classify(compressed, { 'root-1': { settledAt: now - 100 } }, [], now)).toBe('settled')
-      expect(classify(compressed, { 'root-1': { settledAt: now - 100 } }, ['tip-2'], now)).toBe('working')
+      expect(classify(compressed, { 'root-1': { unsettledAt: now - 100 } }, [], now)).toBe('main')
+      expect(classify(compressed, {}, ['tip-2'], now)).toBe('working')
       expect(classify(compressed, { 'mid-1': { snoozedUntil: now + 10_000 } }, [], now)).toBe('snoozed')
     })
   })
@@ -96,8 +126,8 @@ describe('thread-triage store and classify', () => {
       expect($threadTriage.get()).toEqual({ s1: { settledAt: 123_456 } })
       expect(JSON.parse(readKey(THREAD_TRIAGE_STORAGE_KEY) ?? '{}')).toEqual({ s1: { settledAt: 123_456 } })
 
-      unsettleSession('s1')
-      expect($threadTriage.get()).toEqual({})
+      unsettleSession('s1', 789)
+      expect($threadTriage.get()).toEqual({ s1: { unsettledAt: 789 } })
     })
 
     it('snoozes and unsnoozes a session while preserving settled state if present', () => {
@@ -107,9 +137,6 @@ describe('thread-triage store and classify', () => {
 
       unsnoozeSession('s1')
       expect($threadTriage.get()).toEqual({ s1: { settledAt: 100 } })
-
-      unsettleSession('s1')
-      expect($threadTriage.get()).toEqual({})
     })
 
     it('clears settled automatically when a session enters $workingSessionIds', () => {
@@ -123,9 +150,9 @@ describe('thread-triage store and classify', () => {
       expect($threadTriage.get().s1).toBeUndefined()
       expect($threadTriage.get().s2).toEqual({ settledAt: 1_000 })
 
-      // Even after the turn finishes, s1 stays in Working until settled again.
+      // After the turn finishes it lands in the main list for review.
       publishSessionState('rt-1', { ...createClientSessionState('s1'), busy: false })
-      expect(classify('s1')).toBe('working')
+      expect(classify('s1')).toBe('main')
     })
 
     it('computes snooze helper timestamps in the future', () => {

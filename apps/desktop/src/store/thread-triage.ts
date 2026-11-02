@@ -5,20 +5,38 @@ import type { SessionInfo } from '@/types/hermes'
 import { $workingSessionIds } from './session-states'
 
 export const THREAD_TRIAGE_STORAGE_KEY = 'hermes.desktop.threadTriage'
+export const SIDEBAR_WORKING_OPEN_STORAGE_KEY = 'hermes.desktop.sidebarWorkingOpen'
 export const SIDEBAR_SETTLED_OPEN_STORAGE_KEY = 'hermes.desktop.sidebarSettledOpen'
 export const SIDEBAR_SNOOZED_OPEN_STORAGE_KEY = 'hermes.desktop.sidebarSnoozedOpen'
+
+/** Idle (finished, not unread, not waiting on the user) this long => treated as settled. */
+export const AUTO_SETTLE_AFTER_MS = 24 * 60 * 60 * 1000
 
 export interface ThreadTriageRecord {
   settledAt?: number
   snoozedUntil?: number
+  /** "Move back" stamp: restarts the 24h auto-settle clock for an old session. */
+  unsettledAt?: number
 }
 
 export type ThreadTriageMap = Record<string, ThreadTriageRecord>
-export type ThreadTriageBucket = 'settled' | 'snoozed' | 'working'
+/**
+ * main    = finished, waiting for the user to review (top list)
+ * working = a turn is running (Working tray)
+ * settled = explicitly or automatically put away (Settled tray)
+ * snoozed = hidden until `snoozedUntil`
+ */
+export type ThreadTriageBucket = 'main' | 'settled' | 'snoozed' | 'working'
 
-export type TriageSessionIdLike =
-  | Pick<SessionInfo, '_lineage_ids' | '_lineage_root_id' | 'id'>
-  | string
+/** Per-session facts classify() needs beyond the triage map; all optional. */
+export interface TriageSignals {
+  /** Last activity, ms epoch. Unknown (id-only callers) => never auto-settles. */
+  lastActivityMs?: number
+  /** Unread, or blocked on a user prompt: never auto-settles. */
+  needsAttention?: boolean
+}
+
+export type TriageSessionIdLike = Pick<SessionInfo, '_lineage_ids' | '_lineage_root_id' | 'id'> | string
 
 function sanitizeTriageRecord(raw: unknown): ThreadTriageRecord | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -37,11 +55,20 @@ function sanitizeTriageRecord(raw: unknown): ThreadTriageRecord | null {
       ? record.snoozedUntil
       : undefined
 
-  if (settledAt === undefined && snoozedUntil === undefined) {
+  const unsettledAt =
+    typeof record.unsettledAt === 'number' && Number.isFinite(record.unsettledAt) && record.unsettledAt > 0
+      ? record.unsettledAt
+      : undefined
+
+  if (settledAt === undefined && snoozedUntil === undefined && unsettledAt === undefined) {
     return null
   }
 
   const out: ThreadTriageRecord = {}
+
+  if (unsettledAt !== undefined) {
+    out.unsettledAt = unsettledAt
+  }
 
   if (settledAt !== undefined) {
     out.settledAt = settledAt
@@ -83,8 +110,13 @@ export const $threadTriage = connectionScopedAtom<ThreadTriageMap>(
   { includeProfile: false }
 )
 
+export const $sidebarWorkingOpen = persistentAtom(SIDEBAR_WORKING_OPEN_STORAGE_KEY, true, Codecs.bool)
 export const $sidebarSettledOpen = persistentAtom(SIDEBAR_SETTLED_OPEN_STORAGE_KEY, false, Codecs.bool)
 export const $sidebarSnoozedOpen = persistentAtom(SIDEBAR_SNOOZED_OPEN_STORAGE_KEY, false, Codecs.bool)
+
+export function setSidebarWorkingOpen(open: boolean): void {
+  $sidebarWorkingOpen.set(open)
+}
 
 export function setSidebarSettledOpen(open: boolean): void {
   $sidebarSettledOpen.set(open)
@@ -142,8 +174,7 @@ function hasWorkingMatch(ids: readonly string[], workingIds: Iterable<string>): 
 }
 
 function lookupTriageRecord(ids: readonly string[], triage: ThreadTriageMap): ThreadTriageRecord | undefined {
-  let settledAt: number | undefined
-  let snoozedUntil: number | undefined
+  const out: ThreadTriageRecord = {}
 
   for (const id of ids) {
     const entry = triage[id]
@@ -152,20 +183,39 @@ function lookupTriageRecord(ids: readonly string[], triage: ThreadTriageMap): Th
       continue
     }
 
-    if (entry.settledAt !== undefined && (settledAt === undefined || entry.settledAt > settledAt)) {
-      settledAt = entry.settledAt
-    }
+    for (const key of ['settledAt', 'snoozedUntil', 'unsettledAt'] as const) {
+      const value = entry[key]
 
-    if (entry.snoozedUntil !== undefined && (snoozedUntil === undefined || entry.snoozedUntil > snoozedUntil)) {
-      snoozedUntil = entry.snoozedUntil
+      if (value !== undefined && (out[key] === undefined || value > out[key]!)) {
+        out[key] = value
+      }
     }
   }
 
-  if (settledAt === undefined && snoozedUntil === undefined) {
+  return Object.keys(out).length ? out : undefined
+}
+
+/** Last activity (ms) of a listed session; id-only callers get undefined. */
+export function sessionActivityMs(session: TriageSessionIdLike): number | undefined {
+  if (typeof session === 'string') {
     return undefined
   }
 
-  return { settledAt, snoozedUntil }
+  const row = session as Partial<SessionInfo>
+  const raw = row.last_active || row.started_at
+
+  if (!raw || !Number.isFinite(raw)) {
+    return undefined
+  }
+
+  // Raw values > 1e11 are already in ms; values between 1e9 and 1e11 are epoch seconds.
+  // Values below 1e9 (pre-2001) are uninitialized or test mocks without real clocks;
+  // treating them as 1970 would auto-settle every mock session in unrelated tests.
+  if (raw > 1e11) {
+    return raw
+  }
+
+  return raw >= 1e9 ? raw * 1000 : undefined
 }
 
 /**
@@ -173,15 +223,19 @@ function lookupTriageRecord(ids: readonly string[], triage: ThreadTriageMap): Th
  *
  * Precedence:
  * 1. snoozedUntil > now => 'snoozed'
- * 2. session id in workingIds => 'working' (a running turn always shows as working)
- * 3. explicitly settled (settledAt > 0) => 'settled'
- * 4. otherwise => 'working'
+ * 2. session id in workingIds => 'working' (a running turn)
+ * 3. explicit settle with no activity since => 'settled' (wins immediately)
+ * 4. unread / needs-input => 'main' (never auto-settles)
+ * 5. idle longer than AUTO_SETTLE_AFTER_MS (measured from the later of last
+ *    activity and a "Move back" stamp) => 'settled'
+ * 6. otherwise => 'main'
  */
 export function classify(
   session: TriageSessionIdLike,
   triage: ThreadTriageMap = $threadTriage.get(),
   workingIds: Iterable<string> = $workingSessionIds.get(),
-  now: number = Date.now()
+  now: number = Date.now(),
+  signals: TriageSignals = {}
 ): ThreadTriageBucket {
   const ids = sessionCandidateIds(session)
   const record = lookupTriageRecord(ids, triage)
@@ -194,11 +248,19 @@ export function classify(
     return 'working'
   }
 
-  if (record?.settledAt !== undefined && record.settledAt > 0) {
+  const lastActivityMs = signals.lastActivityMs ?? sessionActivityMs(session)
+
+  if (record?.settledAt !== undefined && record.settledAt > 0 && (lastActivityMs ?? 0) <= record.settledAt) {
     return 'settled'
   }
 
-  return 'working'
+  if (signals.needsAttention || lastActivityMs === undefined) {
+    return 'main'
+  }
+
+  const idleSince = Math.max(lastActivityMs, record?.unsettledAt ?? 0)
+
+  return now - idleSince > AUTO_SETTLE_AFTER_MS ? 'settled' : 'main'
 }
 
 export function settleSession(id: string, atMs: number = Date.now()): void {
@@ -220,7 +282,8 @@ export function settleSession(id: string, atMs: number = Date.now()): void {
   })
 }
 
-export function unsettleSession(id: string): void {
+/** "Move back": explicit settle is dropped and the 24h auto-settle clock restarts now. */
+export function unsettleSession(id: string, atMs: number = Date.now()): void {
   const key = id.trim()
 
   if (!key) {
@@ -230,19 +293,13 @@ export function unsettleSession(id: string): void {
   const current = $threadTriage.get()
   const existing = current[key]
 
-  if (!existing || existing.settledAt === undefined) {
-    return
-  }
-
-  const next = { ...current }
-
-  if (existing.snoozedUntil !== undefined) {
-    next[key] = { snoozedUntil: existing.snoozedUntil }
-  } else {
-    delete next[key]
-  }
-
-  $threadTriage.set(next)
+  $threadTriage.set({
+    ...current,
+    [key]: {
+      ...(existing?.snoozedUntil !== undefined ? { snoozedUntil: existing.snoozedUntil } : {}),
+      unsettledAt: atMs
+    }
+  })
 }
 
 export function snoozeSession(id: string, untilMs: number): void {
@@ -258,7 +315,7 @@ export function snoozeSession(id: string, untilMs: number): void {
   $threadTriage.set({
     ...current,
     [key]: {
-      ...(existing?.settledAt !== undefined ? { settledAt: existing.settledAt } : {}),
+      ...existing,
       snoozedUntil: untilMs
     }
   })
@@ -280,8 +337,10 @@ export function unsnoozeSession(id: string): void {
 
   const next = { ...current }
 
-  if (existing.settledAt !== undefined) {
-    next[key] = { settledAt: existing.settledAt }
+  const { snoozedUntil: _drop, ...rest } = existing
+
+  if (Object.keys(rest).length) {
+    next[key] = rest
   } else {
     delete next[key]
   }
@@ -318,8 +377,10 @@ function clearSettledForWorkingIds(workingIds: readonly string[]): void {
 
     next ??= { ...current }
 
-    if (existing.snoozedUntil !== undefined) {
-      next[id] = { snoozedUntil: existing.snoozedUntil }
+    const { settledAt: _drop, ...rest } = existing
+
+    if (Object.keys(rest).length) {
+      next[id] = rest
     } else {
       delete next[id]
     }

@@ -3288,7 +3288,10 @@ export const en: Translations = {
       moveToWorking: 'Move back to Working',
       snooze1h: 'Snooze 1 hour',
       snoozeTomorrow: 'Snooze until tomorrow',
-      unsnooze: 'Unsnooze'
+      unsnooze: 'Unsnooze',
+      moveBack: 'Move back',
+      allCaughtUp: 'All caught up',
+      workingFor: time => `Working ${time}`
     },
     markAllRead: 'Mark all as read'
   },

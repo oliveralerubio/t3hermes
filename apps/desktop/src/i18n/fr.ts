@@ -3732,7 +3732,10 @@ export const frOverrides = {
       moveToWorking: 'Remettre dans En cours',
       snooze1h: 'Mettre en veille 1 heure',
       snoozeTomorrow: 'Mettre en veille jusqu’à demain',
-      unsnooze: 'Réactiver'
+      unsnooze: 'Réactiver',
+      moveBack: 'Remettre',
+      allCaughtUp: 'Tout est à jour',
+      workingFor: time => `En cours ${time}`
     },
     markAllRead: 'Tout marquer comme lu'
   },

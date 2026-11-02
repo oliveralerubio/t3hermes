@@ -3725,7 +3725,10 @@ export const deOverrides = {
       moveToWorking: 'Zurück zu In Arbeit',
       snooze1h: '1 Stunde zurückstellen',
       snoozeTomorrow: 'Bis morgen zurückstellen',
-      unsnooze: 'Zurückstellung aufheben'
+      unsnooze: 'Zurückstellung aufheben',
+      moveBack: 'Zurückholen',
+      allCaughtUp: 'Alles erledigt',
+      workingFor: time => `In Arbeit ${time}`
     },
     markAllRead: 'Alle als gelesen markieren'
   },

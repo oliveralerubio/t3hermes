@@ -191,7 +191,7 @@ import {
 import { buildSessionByAnyId, resolvePinnedSessions } from './session-index'
 import { SidebarSessionsSection, VIRTUALIZE_THRESHOLD } from './sessions-section'
 import { CONTEXT_SPLIT_KIT, SplitSubmenu } from './split-submenu'
-import { TriageSections, useTriageSplit } from './triage-sections'
+import { TriageTrays, useTriageSplit } from './triage-trays'
 import { useEnteredProjectSessions } from './use-entered-project-sessions'
 import { useServerSessionSearch } from './use-server-session-search'
 
@@ -1380,7 +1380,7 @@ export function ChatSidebar({
   // parallel grouped view, not a filter on this one — nothing is hidden here.
   const triageEnabled = !agentsGrouped && !inProject && !showArchived && !ownerGrouped
   const triageSplit = useTriageSplit(agentSessions, triageEnabled)
-  const displayAgentSessions = triageSplit.working
+  const displayAgentSessions = triageSplit.main
 
   // Pagination is scope-aware. In "All profiles" mode it tracks the global
   // unified set; scoped to one profile it tracks that profile's own truncation
@@ -1824,7 +1824,9 @@ export function ChatSidebar({
                           ? s.noFilterMatches
                           : pinnedSessions.length > 0
                             ? s.allPinned
-                            : s.noSessions}
+                            : triageEnabled && agentSessions.length > 0
+                              ? s.triage.allCaughtUp
+                              : s.noSessions}
                     </div>
                   )
                 }
@@ -1984,19 +1986,6 @@ export function ChatSidebar({
               />
             )}
 
-            {!trimmedQuery && triageEnabled && (
-              <TriageSections
-                activeSessionId={activeSidebarSessionId}
-                onArchiveSession={onArchiveSession}
-                onBranchSession={onBranchSession}
-                onDeleteSession={onDeleteSession}
-                onResumeSession={onResumeSession}
-                onTogglePin={pinSession}
-                onToggleUnread={toggleUnread}
-                split={triageSplit}
-              />
-            )}
-
             {!trimmedQuery &&
               !worktreeGroupingActive &&
               messagingGroups.map(group => {
@@ -2070,6 +2059,16 @@ export function ChatSidebar({
         )}
 
         {!showSessionSections && <SidebarBlankState onNewProject={openProjectCreate} />}
+
+        {!trimmedQuery && triageEnabled && (
+          <TriageTrays
+            activeSessionId={activeSidebarSessionId}
+            onArchiveSession={onArchiveSession}
+            onDeleteSession={onDeleteSession}
+            onResumeSession={onResumeSession}
+            split={triageSplit}
+          />
+        )}
 
         {/* Off, the statusbar's profile dropdown (beside the gateway switcher)
             takes over — the rail is a duplicate door for bot-only setups. */}

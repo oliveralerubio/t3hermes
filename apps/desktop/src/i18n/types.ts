@@ -2896,6 +2896,9 @@ export interface Translations extends NoticeTranslations {
       snooze1h: string
       snoozeTomorrow: string
       unsnooze: string
+      moveBack: string
+      allCaughtUp: string
+      workingFor: (time: string) => string
     }
     markAllRead: string
   }

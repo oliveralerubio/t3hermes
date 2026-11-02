@@ -3713,7 +3713,10 @@ export const esOverrides = {
       moveToWorking: 'Volver a En curso',
       snooze1h: 'Posponer 1 hora',
       snoozeTomorrow: 'Posponer hasta mañana',
-      unsnooze: 'Quitar posposición'
+      unsnooze: 'Quitar posposición',
+      moveBack: 'Volver',
+      allCaughtUp: 'Todo al día',
+      workingFor: time => `En curso ${time}`
     },
     markAllRead: 'Marcar todo como leído'
   },

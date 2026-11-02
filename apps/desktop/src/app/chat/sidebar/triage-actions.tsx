@@ -19,13 +19,17 @@ import {
 
 // Fallback copy keeps locales / test doubles without the `triage` block working.
 const FALLBACK = {
+  allCaughtUp: 'All caught up',
+  moveBack: 'Move back',
   moveToWorking: 'Move back to Working',
   settle: 'Settle',
   settled: 'Settled',
   snooze1h: 'Snooze 1 hour',
   snoozed: 'Snoozed',
   snoozeTomorrow: 'Snooze until tomorrow',
-  unsnooze: 'Unsnooze'
+  unsnooze: 'Unsnooze',
+  working: 'Working',
+  workingFor: (time: string) => `Working ${time}`
 }
 
 export function useTriageCopy() {
@@ -61,8 +65,13 @@ export function useTriageMenuItems(sessionId: string, enabled: boolean): ActionI
     return [{ icon: 'bell', label: c.unsnooze, onSelect: act(() => unsnoozeSession(sessionId)) }]
   }
 
+  // A running turn has nothing to settle yet.
+  if (bucket === 'working') {
+    return []
+  }
+
   return bucket === 'settled'
-    ? [{ icon: 'debug-restart', label: c.moveToWorking, onSelect: act(() => unsettleSession(sessionId)) }, ...snooze]
+    ? [{ icon: 'debug-restart', label: c.moveBack, onSelect: act(() => unsettleSession(sessionId)) }, ...snooze]
     : [{ icon: 'check', label: c.settle, onSelect: act(() => settleSession(sessionId)) }, ...snooze]
 }
 
@@ -71,7 +80,7 @@ export function TriageHoverButton({ sessionId }: { sessionId: string }) {
   const c = useTriageCopy()
   const bucket: ThreadTriageBucket = useStoreSelector($threadTriage, triage => classify(sessionId, triage))
 
-  if (bucket !== 'working') {
+  if (bucket !== 'main') {
     return null
   }
 
@@ -92,4 +101,3 @@ export function TriageHoverButton({ sessionId }: { sessionId: string }) {
     </Tip>
   )
 }
-
