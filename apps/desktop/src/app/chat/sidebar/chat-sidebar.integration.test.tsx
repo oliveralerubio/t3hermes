@@ -259,23 +259,24 @@ describe('ChatSidebar pinned empty state under filters', () => {
 
     expect(screen.queryByText('Tile one')).toBeNull()
     expect(screen.queryByText('Shift-click a chat to pin')).toBeNull()
-    // Pinned and Sessions both report the filter.
-    expect(screen.getAllByText('No sessions match these filters')).toHaveLength(2)
+    // T3 mode hides the empty Pinned section; only the thread list reports the filter.
+    expect(screen.getAllByText('No sessions match these filters')).toHaveLength(1)
   })
 
-  it('keeps the pin hint when nothing is pinned and no filter is on', () => {
+  it('hides the pin hint in T3 mode when nothing is pinned and no filter is on', () => {
     renderSidebar('/', 'chat')
 
-    expect(screen.getByText('Shift-click a chat to pin')).toBeTruthy()
+    expect(screen.queryByText('Shift-click a chat to pin')).toBeNull()
+    expect(screen.queryByText('Pinned')).toBeNull()
     expect(screen.queryByText('No sessions match these filters')).toBeNull()
   })
 
-  it('keeps the pin hint when the only filter is a project id the tree does not resolve', () => {
+  it('hides the pin hint in T3 mode when the only filter is a project id the tree does not resolve', () => {
     $sidebarProjectFilter.set(['/repos/gone'])
 
     renderSidebar('/', 'chat')
 
-    expect(screen.getByText('Shift-click a chat to pin')).toBeTruthy()
+    expect(screen.queryByText('Shift-click a chat to pin')).toBeNull()
   })
 
   it('drops the pin hint in the Archived view when Pinned is empty', () => {

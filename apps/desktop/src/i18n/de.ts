@@ -3728,6 +3728,7 @@ export const deOverrides = {
       unsnooze: 'Zurückstellung aufheben',
       moveBack: 'Zurückholen',
       allCaughtUp: 'Alles erledigt',
+      thisDevice: 'Dieses Gerät',
       workingFor: time => `In Arbeit ${time}`
     },
     markAllRead: 'Alle als gelesen markieren'
