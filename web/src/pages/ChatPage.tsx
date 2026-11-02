@@ -32,6 +32,7 @@ import { useNavigate, useSearchParams } from "react-router";
 
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatSessionList } from "@/components/ChatSessionList";
+import { T3HermesView, T3Sidebar } from "@/components/t3hermes/T3HermesView";
 import { usePageHeader } from "@/contexts/usePageHeader";
 import { useI18n } from "@/i18n";
 import { api } from "@/lib/api";
@@ -214,6 +215,14 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
   // affordance; clicking it bumps `reconnectNonce`, which is a dependency of
   // the connect effect, so a fresh PTY spawns in place.
   const [reconnectNonce, setReconnectNonce] = useState(0);
+  const [useT3Hermes] = useState(() => {
+    try {
+      const stored = localStorage.getItem("hermes_t3_ui");
+      return stored === null ? true : stored === "1";
+    } catch {
+      return true;
+    }
+  });
   useEffect(() => {
     ptyStateRef.current = ptyState;
   }, [ptyState]);
@@ -1852,20 +1861,164 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
                 onSessionTitleChange={handleSessionTitleChange}
               />
             </div>
-            <ChatSessionList
-              activeSessionId={resumeParam}
-              isActive={isActive}
-              profile={scopedProfile}
-              onPicked={closeMobilePanel}
-              onNewChat={startFreshDashboardChat}
-              workspaceCwd={workspaceCwd}
-              onWorkspaceChange={setWorkspaceCwd}
-            />
+            {useT3Hermes ? (
+              <T3Sidebar
+                activeSessionId={resumeParam}
+                isActive={isActive}
+                profile={scopedProfile}
+                onPicked={closeMobilePanel}
+                onNewChat={startFreshDashboardChat}
+                workspaceCwd={workspaceCwd}
+                onWorkspaceChange={setWorkspaceCwd}
+              />
+            ) : (
+              <ChatSessionList
+                activeSessionId={resumeParam}
+                isActive={isActive}
+                profile={scopedProfile}
+                onPicked={closeMobilePanel}
+                onNewChat={startFreshDashboardChat}
+                workspaceCwd={workspaceCwd}
+                onWorkspaceChange={setWorkspaceCwd}
+              />
+            )}
           </div>
         </div>
       </>,
       portalRoot,
     );
+
+  const terminalWindow = (
+    <div
+      ref={termWrapRef}
+      className={cn(
+        "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg",
+        "p-2 sm:p-3",
+      )}
+      style={{
+        backgroundColor: terminalBg,
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+      }}
+    >
+      <div
+        ref={hostRef}
+        role="region"
+        aria-label="Chat terminal"
+        className="hermes-chat-xterm-host min-h-0 min-w-0 flex-1"
+      />
+
+      {showReconnectOverlay && (
+        <div className="absolute inset-x-3 top-3 z-20 flex justify-center sm:inset-x-auto sm:right-3 sm:justify-end">
+          <div className="flex max-w-[min(28rem,calc(100vw-3rem))] flex-col items-start gap-2 border border-warning/60 bg-black/80 px-3 py-2 text-xs text-warning shadow-lg">
+            <div className="tracking-wide">
+              {ptyState === "reconnecting"
+                ? "Chat is reconnecting."
+                : reconnectGaveUp
+                  ? PTY_GAVE_UP_BANNER.text
+                  : "Chat disconnected."}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                outlined
+                onClick={reconnectPty}
+                prefix={<RotateCcw className="h-4 w-4" />}
+                aria-label="Reconnect chat"
+              >
+                Reconnect now
+              </Button>
+              {ptyState === "closed" && reconnectGaveUp && (
+                <Button
+                  size="sm"
+                  ghost
+                  onClick={() => navigate("/system")}
+                  aria-label="Check server status"
+                >
+                  Check server status
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResumeLoadingOverlay && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-label={PTY_RESUME_LOADING_MESSAGE}
+        >
+          <div className="max-w-[min(28rem,calc(100vw-3rem))] border border-current/30 bg-black/80 px-4 py-3 text-center text-xs tracking-wide text-white/85 shadow-lg">
+            {PTY_RESUME_LOADING_MESSAGE}
+          </div>
+        </div>
+      )}
+
+      {/* NS-504: the agent process exited (e.g. `/exit` or a new session).
+          Offer an in-place restart so the user never has to refresh the
+          whole page to get a working chat back. */}
+      {ptyState === "ended" && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/60">
+          <div className="max-w-[min(32rem,calc(100vw-3rem))] text-center text-sm tracking-wide text-white/80">
+            {endedReason === "start-failed"
+              ? PTY_START_FAILED_MESSAGE
+              : PTY_SESSION_ENDED_MESSAGE}
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              onClick={startFreshPty}
+              prefix={<RotateCcw className="h-4 w-4" />}
+              aria-label="Start a new chat session"
+            >
+              Start new session
+            </Button>
+            {endedReason === "exited" && (
+              <Button
+                outlined
+                onClick={() => navigate("/logs")}
+                aria-label="Open logs"
+              >
+                Open logs
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <CopyLastButton
+        onClick={handleCopyLast}
+        copied={copyState === "copied"}
+        color={terminalFg}
+      />
+
+      {chatPanelCollapsed && (
+        <Button
+          ghost
+          onClick={toggleChatPanel}
+          title="Show side panel (model + sessions)"
+          aria-label="Show chat side panel"
+          className={cn(
+            "absolute z-10",
+            "normal-case tracking-normal font-normal",
+            "rounded border border-current/30",
+            "bg-black/20",
+            "opacity-70 hover:opacity-100 hover:border-current/60",
+            "transition-opacity duration-150",
+            "top-2 right-2 px-2 py-1 text-xs sm:top-3 sm:right-3",
+          )}
+          style={{ color: terminalFg }}
+        >
+          <span className="inline-flex items-center gap-1">
+            <PanelRight className="h-3 w-3 shrink-0" />
+            <span className="hidden min-[400px]:inline tracking-wide">
+              panel
+            </span>
+          </span>
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -1886,180 +2039,78 @@ export default function ChatPage({ isActive = true }: { isActive?: boolean }) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-3">
-        <div
-          ref={termWrapRef}
-          className={cn(
-            "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg",
-            "p-2 sm:p-3",
-          )}
-          style={{
-            backgroundColor: terminalBg,
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-          }}
+      {useT3Hermes ? (
+        <T3HermesView
+          termRef={termRef}
+          wsRef={wsRef}
+          activeSessionId={resumeParam}
+          isActive={isActive}
+          profile={scopedProfile}
+          onNewChat={startFreshDashboardChat}
+          workspaceCwd={workspaceCwd}
+          onWorkspaceChange={setWorkspaceCwd}
+          chatPanelCollapsed={chatPanelCollapsed}
+          onToggleChatPanel={toggleChatPanel}
+          narrow={narrow}
+          modelPickerSlot={
+            <ChatSidebar
+              channel={channel}
+              profile={scopedProfile}
+              onDashboardNewSessionRequest={startFreshDashboardChat}
+              onSessionTitleChange={handleSessionTitleChange}
+            />
+          }
         >
-          <div
-            ref={hostRef}
-            role="region"
-            aria-label="Chat terminal"
-            className="hermes-chat-xterm-host min-h-0 min-w-0 flex-1"
-          />
+          {terminalWindow}
+        </T3HermesView>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2 lg:flex-row lg:gap-3">
+          {terminalWindow}
 
-          {showReconnectOverlay && (
-            <div className="absolute inset-x-3 top-3 z-20 flex justify-center sm:inset-x-auto sm:right-3 sm:justify-end">
-              <div className="flex max-w-[min(28rem,calc(100vw-3rem))] flex-col items-start gap-2 border border-warning/60 bg-black/80 px-3 py-2 text-xs text-warning shadow-lg">
-                <div className="tracking-wide">
-                  {ptyState === "reconnecting"
-                    ? "Chat is reconnecting."
-                    : reconnectGaveUp
-                      ? PTY_GAVE_UP_BANNER.text
-                      : "Chat disconnected."}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    outlined
-                    onClick={reconnectPty}
-                    prefix={<RotateCcw className="h-4 w-4" />}
-                    aria-label="Reconnect chat"
-                  >
-                    Reconnect now
-                  </Button>
-                  {ptyState === "closed" && reconnectGaveUp && (
-                    <Button
-                      size="sm"
-                      ghost
-                      onClick={() => navigate("/system")}
-                      aria-label="Check server status"
-                    >
-                      Check server status
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showResumeLoadingOverlay && (
+          {!narrow && !chatPanelCollapsed && (
             <div
-              className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
-              role="status"
-              aria-live="polite"
-              aria-label={PTY_RESUME_LOADING_MESSAGE}
+              id="chat-side-panel"
+              role="complementary"
+              aria-label={modelToolsLabel}
+              className="flex min-h-0 shrink-0 flex-col gap-3 overflow-hidden lg:h-full lg:w-60"
             >
-              <div className="max-w-[min(28rem,calc(100vw-3rem))] border border-current/30 bg-black/80 px-4 py-3 text-center text-xs tracking-wide text-white/85 shadow-lg">
-                {PTY_RESUME_LOADING_MESSAGE}
-              </div>
-            </div>
-          )}
-
-          {/* NS-504: the agent process exited (e.g. `/exit` or a new session).
-              Offer an in-place restart so the user never has to refresh the
-              whole page to get a working chat back. */}
-          {ptyState === "ended" && (
-            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/60">
-              <div className="max-w-[min(32rem,calc(100vw-3rem))] text-center text-sm tracking-wide text-white/80">
-                {endedReason === "start-failed"
-                  ? PTY_START_FAILED_MESSAGE
-                  : PTY_SESSION_ENDED_MESSAGE}
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex h-8 shrink-0 items-center justify-end pr-1">
                 <Button
-                  onClick={startFreshPty}
-                  prefix={<RotateCcw className="h-4 w-4" />}
-                  aria-label="Start a new chat session"
+                  ghost
+                  size="icon"
+                  onClick={toggleChatPanel}
+                  aria-label="Collapse chat side panel"
+                  title="Collapse side panel"
+                  className="text-text-secondary hover:text-midground"
                 >
-                  Start new session
+                  <X />
                 </Button>
-                {endedReason === "exited" && (
-                  <Button
-                    outlined
-                    onClick={() => navigate("/logs")}
-                    aria-label="Open logs"
-                  >
-                    Open logs
-                  </Button>
-                )}
+              </div>
+              {/* Model picker — keeps the rail thin. */}
+              <div className="shrink-0">
+                <ChatSidebar
+                  channel={channel}
+                  profile={scopedProfile}
+                  onDashboardNewSessionRequest={startFreshDashboardChat}
+                  onSessionTitleChange={handleSessionTitleChange}
+                />
+              </div>
+
+              {/* Session switcher fills the remaining height below the model box. */}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <ChatSessionList
+                  activeSessionId={resumeParam}
+                  isActive={isActive}
+                  profile={scopedProfile}
+                  onNewChat={startFreshDashboardChat}
+                  workspaceCwd={workspaceCwd}
+                  onWorkspaceChange={setWorkspaceCwd}
+                />
               </div>
             </div>
-          )}
-
-          <CopyLastButton
-            onClick={handleCopyLast}
-            copied={copyState === "copied"}
-            color={terminalFg}
-          />
-
-          {chatPanelCollapsed && (
-            <Button
-              ghost
-              onClick={toggleChatPanel}
-              title="Show side panel (model + sessions)"
-              aria-label="Show chat side panel"
-              className={cn(
-                "absolute z-10",
-                "normal-case tracking-normal font-normal",
-                "rounded border border-current/30",
-                "bg-black/20",
-                "opacity-70 hover:opacity-100 hover:border-current/60",
-                "transition-opacity duration-150",
-                "top-2 right-2 px-2 py-1 text-xs sm:top-3 sm:right-3",
-              )}
-              style={{ color: terminalFg }}
-            >
-              <span className="inline-flex items-center gap-1">
-                <PanelRight className="h-3 w-3 shrink-0" />
-                <span className="hidden min-[400px]:inline tracking-wide">
-                  panel
-                </span>
-              </span>
-            </Button>
           )}
         </div>
-
-        {!narrow && !chatPanelCollapsed && (
-          <div
-            id="chat-side-panel"
-            role="complementary"
-            aria-label={modelToolsLabel}
-            className="flex min-h-0 shrink-0 flex-col gap-3 overflow-hidden lg:h-full lg:w-60"
-          >
-            <div className="flex h-8 shrink-0 items-center justify-end pr-1">
-              <Button
-                ghost
-                size="icon"
-                onClick={toggleChatPanel}
-                aria-label="Collapse chat side panel"
-                title="Collapse side panel"
-                className="text-text-secondary hover:text-midground"
-              >
-                <X />
-              </Button>
-            </div>
-            {/* Model picker — keeps the rail thin. */}
-            <div className="shrink-0">
-              <ChatSidebar
-                channel={channel}
-                profile={scopedProfile}
-                onDashboardNewSessionRequest={startFreshDashboardChat}
-                onSessionTitleChange={handleSessionTitleChange}
-              />
-            </div>
-
-            {/* Session switcher fills the remaining height below the model box. */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <ChatSessionList
-                activeSessionId={resumeParam}
-                isActive={isActive}
-                profile={scopedProfile}
-                onNewChat={startFreshDashboardChat}
-                workspaceCwd={workspaceCwd}
-                onWorkspaceChange={setWorkspaceCwd}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+      )}
       <PluginSlot name="chat:bottom" />
     </div>
   );
