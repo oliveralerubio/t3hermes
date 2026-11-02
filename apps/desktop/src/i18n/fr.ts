@@ -3724,6 +3724,16 @@ export const frOverrides = {
       working: 'En cours',
       done: 'Terminées'
     },
+    triage: {
+      working: 'En cours',
+      settled: 'Classées',
+      snoozed: 'En veille',
+      settle: 'Classer',
+      moveToWorking: 'Remettre dans En cours',
+      snooze1h: 'Mettre en veille 1 heure',
+      snoozeTomorrow: 'Mettre en veille jusqu’à demain',
+      unsnooze: 'Réactiver'
+    },
     markAllRead: 'Tout marquer comme lu'
   },
   composer: {
@@ -3942,6 +3952,14 @@ export const frOverrides = {
     snippetsDesc: 'Choisissez une invite de démarrage à insérer dans le compositeur.',
     dropFiles: 'Déposez des fichiers pour les attacher',
     dropSession: 'Déposez pour lier cette conversation',
+    machineProfile: {
+      machines: 'Machines',
+      profileWith: name => `Profil : ${name}`,
+      profiles: 'Profils',
+      switchMachine: 'Changer de machine',
+      switchMachineFailed: label => `Connexion à ${label} impossible`,
+      switchProfile: 'Changer de profil'
+    },
     snippets: {
       codeReview: {
         label: 'Revue de code',

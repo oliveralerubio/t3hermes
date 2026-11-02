@@ -2887,6 +2887,16 @@ export interface Translations extends NoticeTranslations {
       working: string
       done: string
     }
+    triage: {
+      working: string
+      settled: string
+      snoozed: string
+      settle: string
+      moveToWorking: string
+      snooze1h: string
+      snoozeTomorrow: string
+      unsnooze: string
+    }
     markAllRead: string
   }
 
@@ -3005,6 +3015,21 @@ export interface Translations extends NoticeTranslations {
     snippets: Record<string, { label: string; description: string; text: string }>
     dropFiles: string
     dropSession: string
+    /** Machine + profile pickers in the composer's bottom bar. */
+    machineProfile: {
+      /** Menu/list label for the machine (connection) choices. */
+      machines: string
+      /** Menu/list label for the profile choices. */
+      profiles: string
+      /** Pill + tip copy for choosing the machine the chat runs on. */
+      switchMachine: string
+      /** Pill + tip copy for choosing the profile the chat runs on. */
+      switchProfile: string
+      /** Pill label prefixing the active profile's display name. */
+      profileWith: (name: string) => string
+      /** Surfaced when the selected machine fails to connect. */
+      switchMachineFailed: (label: string) => string
+    }
   }
 
   statusStack: {

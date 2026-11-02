@@ -54,6 +54,7 @@ import { SessionActionsMenu, SessionContextMenu } from './session-actions-menu'
 import { sessionRowDetails } from './session-row-details'
 import { resolveSessionRowClick } from './session-row-gesture'
 import { SessionRowSlot } from './session-row-slots'
+import { TriageHoverButton } from './triage-actions'
 import { useProfilePrewarm } from './use-profile-prewarm'
 
 interface SidebarSessionRowProps extends React.ComponentProps<'div'> {
@@ -326,6 +327,7 @@ function SidebarSessionRowImpl({
           {node}
         </span>
       ))}
+      {!session.archived && <TriageHoverButton sessionId={session.id} />}
       <SessionActionsMenu
         archived={Boolean(session.archived)}
         onArchive={onArchive}

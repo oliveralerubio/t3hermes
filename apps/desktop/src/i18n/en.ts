@@ -3280,6 +3280,16 @@ export const en: Translations = {
       working: 'Working',
       done: 'Done'
     },
+    triage: {
+      working: 'Working',
+      settled: 'Settled',
+      snoozed: 'Snoozed',
+      settle: 'Settle',
+      moveToWorking: 'Move back to Working',
+      snooze1h: 'Snooze 1 hour',
+      snoozeTomorrow: 'Snooze until tomorrow',
+      unsnooze: 'Unsnooze'
+    },
     markAllRead: 'Mark all as read'
   },
 
@@ -3498,6 +3508,14 @@ export const en: Translations = {
     snippetsDesc: 'Pick a starter prompt to drop into the composer.',
     dropFiles: 'Drop files to attach',
     dropSession: 'Drop to link this chat',
+    machineProfile: {
+      machines: 'Machines',
+      profileWith: name => `Profile: ${name}`,
+      profiles: 'Profiles',
+      switchMachine: 'Switch machine',
+      switchMachineFailed: label => `Could not connect to ${label}`,
+      switchProfile: 'Switch profile'
+    },
     snippets: {
       codeReview: {
         label: 'Code review',

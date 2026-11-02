@@ -3717,6 +3717,16 @@ export const deOverrides = {
       working: 'In Arbeit',
       done: 'Erledigt'
     },
+    triage: {
+      working: 'In Arbeit',
+      settled: 'Erledigt',
+      snoozed: 'Zurückgestellt',
+      settle: 'Als erledigt markieren',
+      moveToWorking: 'Zurück zu In Arbeit',
+      snooze1h: '1 Stunde zurückstellen',
+      snoozeTomorrow: 'Bis morgen zurückstellen',
+      unsnooze: 'Zurückstellung aufheben'
+    },
     markAllRead: 'Alle als gelesen markieren'
   },
   composer: {
@@ -3933,6 +3943,14 @@ export const deOverrides = {
     snippetsDesc: 'Wählen Sie einen Start-Prompt, um ihn in den Composer einzufügen.',
     dropFiles: 'Dateien zum Anhängen ablegen',
     dropSession: 'Ablegen, um diesen Chat zu verlinken',
+    machineProfile: {
+      machines: 'Maschinen',
+      profileWith: name => `Profil: ${name}`,
+      profiles: 'Profile',
+      switchMachine: 'Maschine wechseln',
+      switchMachineFailed: label => `Verbindung zu ${label} fehlgeschlagen`,
+      switchProfile: 'Profil wechseln'
+    },
     snippets: {
       codeReview: {
         label: 'Code-Review',

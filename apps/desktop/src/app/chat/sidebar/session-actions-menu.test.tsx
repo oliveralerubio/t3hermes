@@ -105,6 +105,7 @@ vi.mock('@/store/session-color', () => ({
 vi.mock('@/store/session-states', () => ({
   $sessionStates: atom<Record<string, unknown>>({}),
   $sessionTiles: atom<unknown[]>([]),
+  $workingSessionIds: atom<string[]>([]),
   closeAllOpenSessionTiles: vi.fn(),
   openSessionTile: vi.fn()
 }))

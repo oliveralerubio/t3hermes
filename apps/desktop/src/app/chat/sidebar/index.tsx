@@ -191,6 +191,7 @@ import {
 import { buildSessionByAnyId, resolvePinnedSessions } from './session-index'
 import { SidebarSessionsSection, VIRTUALIZE_THRESHOLD } from './sessions-section'
 import { CONTEXT_SPLIT_KIT, SplitSubmenu } from './split-submenu'
+import { TriageSections, useTriageSplit } from './triage-sections'
 import { useEnteredProjectSessions } from './use-entered-project-sessions'
 import { useServerSessionSearch } from './use-server-session-search'
 
@@ -1377,7 +1378,9 @@ export function ChatSidebar({
 
   // The flat Sessions list always shows ALL recent sessions; Projects is a
   // parallel grouped view, not a filter on this one — nothing is hidden here.
-  const displayAgentSessions = agentSessions
+  const triageEnabled = !agentsGrouped && !inProject && !showArchived && !ownerGrouped
+  const triageSplit = useTriageSplit(agentSessions, triageEnabled)
+  const displayAgentSessions = triageSplit.working
 
   // Pagination is scope-aware. In "All profiles" mode it tracks the global
   // unified set; scoped to one profile it tracks that profile's own truncation
@@ -1978,6 +1981,19 @@ export function ChatSidebar({
                 )}
                 sessions={displayAgentSessions}
                 sortable={!showAllProfiles && agentSessions.length > 1}
+              />
+            )}
+
+            {!trimmedQuery && triageEnabled && (
+              <TriageSections
+                activeSessionId={activeSidebarSessionId}
+                onArchiveSession={onArchiveSession}
+                onBranchSession={onBranchSession}
+                onDeleteSession={onDeleteSession}
+                onResumeSession={onResumeSession}
+                onTogglePin={pinSession}
+                onToggleUnread={toggleUnread}
+                split={triageSplit}
               />
             )}
 

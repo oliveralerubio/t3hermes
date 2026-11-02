@@ -3705,6 +3705,16 @@ export const esOverrides = {
       working: 'En progreso',
       done: 'Completado'
     },
+    triage: {
+      working: 'En curso',
+      settled: 'Resueltas',
+      snoozed: 'Pospuestas',
+      settle: 'Marcar como resuelta',
+      moveToWorking: 'Volver a En curso',
+      snooze1h: 'Posponer 1 hora',
+      snoozeTomorrow: 'Posponer hasta mañana',
+      unsnooze: 'Quitar posposición'
+    },
     markAllRead: 'Marcar todo como leído'
   },
   composer: {
@@ -3921,6 +3931,14 @@ export const esOverrides = {
     snippetsDesc: 'Elige un prompt inicial para insertarlo en el compositor.',
     dropFiles: 'Suelta archivos para adjuntarlos',
     dropSession: 'Suelta para enlazar este chat',
+    machineProfile: {
+      machines: 'Máquinas',
+      profileWith: name => `Perfil: ${name}`,
+      profiles: 'Perfiles',
+      switchMachine: 'Cambiar máquina',
+      switchMachineFailed: label => `No se pudo conectar a ${label}`,
+      switchProfile: 'Cambiar perfil'
+    },
     snippets: {
       codeReview: {
         label: 'Revisión de código',
