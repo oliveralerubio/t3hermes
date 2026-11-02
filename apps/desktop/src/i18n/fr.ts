@@ -3735,6 +3735,7 @@ export const frOverrides = {
       unsnooze: 'Réactiver',
       moveBack: 'Remettre',
       allCaughtUp: 'Tout est à jour',
+      thisDevice: 'Cet appareil',
       workingFor: time => `En cours ${time}`
     },
     markAllRead: 'Tout marquer comme lu'

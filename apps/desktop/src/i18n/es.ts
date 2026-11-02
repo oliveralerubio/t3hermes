@@ -3716,6 +3716,7 @@ export const esOverrides = {
       unsnooze: 'Quitar posposición',
       moveBack: 'Volver',
       allCaughtUp: 'Todo al día',
+      thisDevice: 'Este dispositivo',
       workingFor: time => `En curso ${time}`
     },
     markAllRead: 'Marcar todo como leído'

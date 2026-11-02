@@ -3291,6 +3291,7 @@ export const en: Translations = {
       unsnooze: 'Unsnooze',
       moveBack: 'Move back',
       allCaughtUp: 'All caught up',
+      thisDevice: 'This device',
       workingFor: time => `Working ${time}`
     },
     markAllRead: 'Mark all as read'

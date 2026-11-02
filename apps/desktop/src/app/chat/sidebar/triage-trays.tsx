@@ -1,15 +1,9 @@
 import { useStore } from '@nanostores/react'
 import { memo, useEffect, useMemo, useState } from 'react'
 
-import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
-import { DisclosureCaret } from '@/components/ui/disclosure-caret'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
-import { Tip } from '@/components/ui/tooltip'
-import { sessionTitle } from '@/lib/chat-runtime'
-import { triggerHaptic } from '@/lib/haptics'
 import { useStoreSelector } from '@/lib/use-session-slice'
-import { cn } from '@/lib/utils'
 import { $sessionDotStateById } from '@/store/session-dot-state'
 import { $sessionStates } from '@/store/session-states'
 import {
@@ -20,13 +14,11 @@ import {
   sessionActivityMs,
   setSidebarSettledOpen,
   setSidebarSnoozedOpen,
-  setSidebarWorkingOpen,
-  unsettleSession,
-  unsnoozeSession
+  setSidebarWorkingOpen
 } from '@/store/thread-triage'
 import type { SessionInfo } from '@/types/hermes'
 
-import { SessionActionsMenu } from './session-actions-menu'
+import { T3ThreadCard } from './t3-thread-list'
 import { useTriageCopy } from './triage-actions'
 import { classifyRow } from './triage-classify'
 
@@ -110,7 +102,7 @@ function turnStartFor(
   return start
 }
 
-interface TrayRowProps {
+interface TrayCardRowProps {
   active: boolean
   onArchiveSession?: (id: string) => void
   onDeleteSession?: (id: string) => void
@@ -118,118 +110,36 @@ interface TrayRowProps {
   session: SessionInfo
 }
 
-const WorkingTrayRow = memo(function WorkingTrayRow({
+const WorkingTrayCard = memo(function WorkingTrayCard({
   active,
   onArchiveSession,
   onDeleteSession,
   onSelect,
   session
-}: TrayRowProps) {
+}: TrayCardRowProps) {
   const turnStart = useStoreSelector($sessionStates, states => turnStartFor(states, session))
   const c = useTriageCopy()
   const now = useElapsedTimer()
-  // Turn start when the runtime knows it; else the row's last activity.
   const startedMs = turnStart ?? sessionActivityMs(session) ?? now
-
   const elapsed = formatWorkingElapsed(startedMs, now)
-  const title = sessionTitle(session)
 
-  return (
-    <div
-      aria-selected={active}
-      className={cn(
-        'group relative flex h-7 items-center justify-between gap-1.5 rounded-md px-2 text-left text-xs transition-colors select-none',
-        'hover:bg-(--ui-control-hover-background) hover:text-foreground cursor-pointer',
-        active ? 'bg-(--ui-control-active-background) text-foreground font-medium' : 'text-(--ui-text-secondary)'
-      )}
-      onClick={onSelect}
-      role="button"
-      tabIndex={0}
-    >
-      <span className="truncate">{title}</span>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="flex items-center gap-1 text-[0.6875rem] text-(--ui-text-tertiary)">
-          <GlyphSpinner className="size-3" />
-          <span>{c.workingFor(elapsed)}</span>
-        </span>
-        <SessionActionsMenu
-          archived={Boolean(session.archived)}
-          onArchive={onArchiveSession ? () => onArchiveSession(session.id) : undefined}
-          onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
-          sessionId={session.id}
-          title={title}
-        >
-          <Button
-            aria-label="Actions"
-            className="size-5 rounded-[4px] bg-transparent text-(--ui-text-tertiary) hover:bg-(--ui-control-active-background) hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity [&_svg]:size-3.5!"
-            size="icon"
-            variant="ghost"
-          >
-            <Codicon name="ellipsis" size="0.875rem" />
-          </Button>
-        </SessionActionsMenu>
-      </div>
-    </div>
+  const status = (
+    <span className="flex items-center gap-1 font-mono text-[0.6875rem] text-(--ui-text-tertiary)">
+      <GlyphSpinner className="size-3" />
+      <span>{c.workingFor(elapsed)}</span>
+    </span>
   )
-})
-
-const SettledTrayRow = memo(function SettledTrayRow({
-  active,
-  onArchiveSession,
-  onDeleteSession,
-  onSelect,
-  session
-}: TrayRowProps) {
-  const c = useTriageCopy()
-  const title = sessionTitle(session)
 
   return (
-    <div
-      aria-selected={active}
-      className={cn(
-        'group relative flex h-7 items-center justify-between gap-1.5 rounded-md px-2 text-left text-xs transition-colors select-none',
-        'hover:bg-(--ui-control-hover-background) hover:text-foreground cursor-pointer',
-        active ? 'bg-(--ui-control-active-background) text-foreground font-medium' : 'text-(--ui-text-tertiary)'
-      )}
-      onClick={onSelect}
-      role="button"
-      tabIndex={0}
-    >
-      <span className="truncate">{title}</span>
-      <div className="flex shrink-0 items-center gap-0.5">
-        <Tip label={c.moveBack}>
-          <Button
-            aria-label={c.moveBack}
-            className="size-5 rounded-[4px] bg-transparent text-(--ui-text-tertiary) hover:bg-(--ui-control-active-background) hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity [&_svg]:size-3.5!"
-            onClick={e => {
-              e.stopPropagation()
-              triggerHaptic('selection')
-              unsettleSession(session.id)
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <Codicon name="debug-restart" size="0.875rem" />
-          </Button>
-        </Tip>
-        <SessionActionsMenu
-          archived={Boolean(session.archived)}
-          onArchive={onArchiveSession ? () => onArchiveSession(session.id) : undefined}
-          onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
-          sessionId={session.id}
-          title={title}
-        >
-          <Button
-            aria-label="Actions"
-            className="size-5 rounded-[4px] bg-transparent text-(--ui-text-tertiary) hover:bg-(--ui-control-active-background) hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity [&_svg]:size-3.5!"
-            size="icon"
-            variant="ghost"
-          >
-            <Codicon name="ellipsis" size="0.875rem" />
-          </Button>
-        </SessionActionsMenu>
-      </div>
-    </div>
+    <T3ThreadCard
+      active={active}
+      onArchive={onArchiveSession ? () => onArchiveSession(session.id) : undefined}
+      onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
+      onSelect={onSelect}
+      session={session}
+      status={status}
+      variant="working"
+    />
   )
 })
 
@@ -243,14 +153,14 @@ interface TrayHeaderButtonProps {
 function TrayHeaderButton({ count, label, onToggle, open }: TrayHeaderButtonProps) {
   return (
     <button
-      className="flex h-7 w-full items-center justify-between rounded-md px-2 text-left text-xs font-medium text-(--ui-text-secondary) transition-colors hover:bg-(--ui-control-hover-background) hover:text-foreground"
+      className="flex h-9 w-full items-center justify-between rounded-md px-2.5 text-left text-sm font-medium text-(--ui-text-secondary) transition-colors hover:bg-(--ui-control-hover-background) hover:text-foreground"
       onClick={onToggle}
       type="button"
     >
       <span>{label}</span>
-      <span className="flex items-center gap-1 text-[0.6875rem] text-(--ui-text-tertiary)">
+      <span className="flex items-center gap-1.5 text-xs text-(--ui-text-tertiary)">
         <span>{count}</span>
-        <DisclosureCaret open={open} size="0.6875rem" />
+        <Codicon name={open ? 'chevron-down' : 'chevron-right'} size="0.75rem" />
       </span>
     </button>
   )
@@ -265,7 +175,9 @@ export interface TriageTraysProps {
 }
 
 /**
- * T3 Code-style Working and Settled trays docked at the bottom of the sidebar.
+ * T3 Code-style Working, Settled, and Snoozed trays docked at the bottom of the sidebar.
+ * Header rows are ~36px, text-sm, label left, count + caret right.
+ * Working and Settled rows render as readable two-line cards.
  */
 export function TriageTrays({
   activeSessionId,
@@ -280,7 +192,7 @@ export function TriageTrays({
   const snoozedOpen = useStore($sidebarSnoozedOpen)
 
   return (
-    <div className="flex shrink-0 flex-col gap-0.5 border-t border-(--sidebar-edge-border) pt-1 pb-1">
+    <div className="flex shrink-0 flex-col gap-0.5 border-t border-(--sidebar-edge-border) px-1 py-1">
       {/* Working Tray */}
       <TrayHeaderButton
         count={split.working.length}
@@ -289,9 +201,9 @@ export function TriageTrays({
         open={workingOpen}
       />
       {workingOpen && split.working.length > 0 && (
-        <div className="flex max-h-48 flex-col gap-px overflow-y-auto pl-1 pr-0.5">
+        <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto overscroll-contain pr-0.5">
           {split.working.map(session => (
-            <WorkingTrayRow
+            <WorkingTrayCard
               active={session.id === activeSessionId}
               key={session.id}
               onArchiveSession={onArchiveSession}
@@ -311,15 +223,16 @@ export function TriageTrays({
         open={settledOpen}
       />
       {settledOpen && split.settled.length > 0 && (
-        <div className="flex max-h-56 flex-col gap-px overflow-y-auto pl-1 pr-0.5">
+        <div className="flex max-h-[40vh] flex-col gap-0.5 overflow-y-auto overscroll-contain pr-0.5">
           {split.settled.map(session => (
-            <SettledTrayRow
+            <T3ThreadCard
               active={session.id === activeSessionId}
               key={session.id}
-              onArchiveSession={onArchiveSession}
-              onDeleteSession={onDeleteSession}
+              onArchive={onArchiveSession ? () => onArchiveSession(session.id) : undefined}
+              onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
               onSelect={() => onResumeSession(session.id, session)}
               session={session}
+              variant="settled"
             />
           ))}
         </div>
@@ -335,33 +248,17 @@ export function TriageTrays({
             open={snoozedOpen}
           />
           {snoozedOpen && (
-            <div className="flex max-h-40 flex-col gap-px overflow-y-auto pl-1 pr-0.5">
+            <div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto overscroll-contain pr-0.5">
               {split.snoozed.map(session => (
-                <div
-                  aria-selected={session.id === activeSessionId}
-                  className="group relative flex h-7 items-center justify-between gap-1.5 rounded-md px-2 text-left text-xs text-(--ui-text-tertiary) hover:bg-(--ui-control-hover-background) hover:text-foreground cursor-pointer"
+                <T3ThreadCard
+                  active={session.id === activeSessionId}
                   key={session.id}
-                  onClick={() => onResumeSession(session.id, session)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <span className="truncate">{sessionTitle(session)}</span>
-                  <Tip label={c.unsnooze}>
-                    <Button
-                      aria-label={c.unsnooze}
-                      className="size-5 rounded-[4px] bg-transparent text-(--ui-text-tertiary) hover:bg-(--ui-control-active-background) hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity [&_svg]:size-3.5!"
-                      onClick={e => {
-                        e.stopPropagation()
-                        triggerHaptic('selection')
-                        unsnoozeSession(session.id)
-                      }}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <Codicon name="bell" size="0.875rem" />
-                    </Button>
-                  </Tip>
-                </div>
+                  onArchive={onArchiveSession ? () => onArchiveSession(session.id) : undefined}
+                  onDelete={onDeleteSession ? () => onDeleteSession(session.id) : undefined}
+                  onSelect={() => onResumeSession(session.id, session)}
+                  session={session}
+                  variant="snoozed"
+                />
               ))}
             </div>
           )}

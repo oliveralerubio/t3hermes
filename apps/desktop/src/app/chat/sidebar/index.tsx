@@ -191,6 +191,8 @@ import {
 import { buildSessionByAnyId, resolvePinnedSessions } from './session-index'
 import { SidebarSessionsSection, VIRTUALIZE_THRESHOLD } from './sessions-section'
 import { CONTEXT_SPLIT_KIT, SplitSubmenu } from './split-submenu'
+import { T3ThreadList } from './t3-thread-list'
+import { mergeTriageSessions } from './t3-thread-model'
 import { TriageTrays, useTriageSplit } from './triage-trays'
 import { useEnteredProjectSessions } from './use-entered-project-sessions'
 import { useServerSessionSearch } from './use-server-session-search'
@@ -1379,7 +1381,14 @@ export function ChatSidebar({
   // The flat Sessions list always shows ALL recent sessions; Projects is a
   // parallel grouped view, not a filter on this one — nothing is hidden here.
   const triageEnabled = !agentsGrouped && !inProject && !showArchived && !ownerGrouped
-  const triageSplit = useTriageSplit(agentSessions, triageEnabled)
+
+  // T3 mode: messaging-platform rows join the one triage pipeline (deduped) instead of per-platform sections.
+  const triageSessions = useMemo(
+    () => (triageEnabled ? mergeTriageSessions(agentSessions, messagingGroups.flatMap(g => g.sessions)) : agentSessions),
+    [triageEnabled, agentSessions, messagingGroups]
+  )
+
+  const triageSplit = useTriageSplit(triageSessions, triageEnabled)
   const displayAgentSessions = triageSplit.main
 
   // Pagination is scope-aware. In "All profiles" mode it tracks the global
@@ -1758,7 +1767,7 @@ export function ChatSidebar({
               />
             )}
 
-            {!trimmedQuery && (
+            {!trimmedQuery && !(triageEnabled && pinnedSessions.length === 0) && (
               <SidebarSessionsSection
                 activeSessionId={activeSidebarSessionId}
                 // Inbox style rides whichever view is active — pinned rows
@@ -1787,7 +1796,40 @@ export function ChatSidebar({
             )}
 
             {!trimmedQuery && inProject && projectLoadFailed && <SidebarLoadErrorState onRetry={retryProject} />}
-            {!trimmedQuery && (
+            {!trimmedQuery && triageEnabled && (
+              <T3ThreadList
+                activeSessionId={activeSidebarSessionId}
+                emptyState={
+                  showSessionSkeletons ? (
+                    <SidebarSessionSkeletons />
+                  ) : sessionsLoadError ? (
+                    <SidebarLoadErrorState onRetry={() => void onRetrySessions()} />
+                  ) : (
+                    <div className="grid min-h-16 place-items-center rounded-lg px-2 text-center text-xs text-(--ui-text-tertiary)">
+                      {filtersActive
+                        ? s.noFilterMatches
+                        : pinnedSessions.length > 0
+                          ? s.allPinned
+                          : agentSessions.length > 0
+                            ? s.triage.allCaughtUp
+                            : s.noSessions}
+                    </div>
+                  )
+                }
+                hasMore={!showSessionSkeletons && hasMoreSessions}
+                loadingMore={sessionsLoading || recentsLoadMorePending}
+                onArchiveSession={onArchiveSession}
+                onBranchSession={onBranchSession}
+                onDeleteSession={onDeleteSession}
+                onLoadMore={() => void onLoadMoreRecents()}
+                onResumeSession={onResumeSession}
+                onTogglePin={pinSession}
+                onToggleUnread={toggleUnread}
+                sessions={displayAgentSessions}
+              />
+            )}
+
+            {!trimmedQuery && !triageEnabled && (
               <SidebarSessionsSection
                 activeProjectId={activeProjectId}
                 activeSessionId={activeSidebarSessionId}
@@ -1988,6 +2030,7 @@ export function ChatSidebar({
 
             {!trimmedQuery &&
               !worktreeGroupingActive &&
+              !triageEnabled &&
               messagingGroups.map(group => {
                 const visible = messagingVisible[group.sourceId] ?? NON_SESSION_INITIAL_ROWS
                 const shownSessions = group.sessions.slice(0, visible)

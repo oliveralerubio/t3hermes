@@ -24,6 +24,7 @@ const FALLBACK = {
   moveToWorking: 'Move back to Working',
   settle: 'Settle',
   settled: 'Settled',
+  thisDevice: 'This device',
   snooze1h: 'Snooze 1 hour',
   snoozed: 'Snoozed',
   snoozeTomorrow: 'Snooze until tomorrow',
