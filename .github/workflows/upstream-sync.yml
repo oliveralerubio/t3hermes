@@ -1,0 +1,36 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 03:00 UTC
+  workflow_dispatch:      # Manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/NousResearch/hermes-agent.git
+
+      - name: Fetch upstream main
+        run: git fetch upstream main --no-tags
+
+      - name: Rebase main onto upstream/main
+        run: |
+          # Rebase local T3Hermes customizations cleanly on top of upstream updates
+          git rebase upstream/main
+          git push --force-with-lease origin main
