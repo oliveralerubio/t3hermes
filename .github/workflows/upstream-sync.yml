@@ -1,12 +1,16 @@
 name: Upstream Sync
 
+# Merges NousResearch/hermes-agent main into this fork's main.
+# main is NEVER rebased or force-pushed: user machines fast-forward from it.
+
 on:
   schedule:
-    - cron: '0 3 * * *'  # Daily at 03:00 UTC
-  workflow_dispatch:      # Manual trigger
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:       # Manual trigger
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   sync:
@@ -23,14 +27,46 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add upstream remote
-        run: git remote add upstream https://github.com/NousResearch/hermes-agent.git
-
-      - name: Fetch upstream main
-        run: git fetch upstream main --no-tags
-
-      - name: Rebase main onto upstream/main
+      - name: Add upstream remote and fetch
         run: |
-          # Rebase local T3Hermes customizations cleanly on top of upstream updates
-          git rebase upstream/main
-          git push --force-with-lease origin main
+          git remote add upstream https://github.com/NousResearch/hermes-agent.git
+          git fetch upstream main --no-tags
+
+      - name: Merge upstream into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}  # two remotes exist; pin gh to the fork
+        run: |
+          # Nothing to do if upstream is already contained in main.
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date with upstream."
+            exit 0
+          fi
+
+          upstream_sha=$(git rev-parse upstream/main)
+
+          if git merge --no-edit upstream/main -m "chore: sync upstream hermes-agent"; then
+            git push origin main   # plain push, never force
+            exit 0
+          fi
+
+          # Conflict: record the files, then leave main untouched.
+          conflicts=$(git diff --name-only --diff-filter=U)
+          git merge --abort
+
+          title="Upstream sync conflict"
+          body=$(printf 'Merging upstream/main (%s) into main hit conflicts in:\n\n%s\n\nResolve manually: merge upstream/main locally and push to main.\n\nRun: %s/%s/actions/runs/%s' \
+            "$upstream_sha" "$(echo "$conflicts" | sed 's/^/- /')" \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+
+          # Reuse an open issue with the same title, otherwise create one.
+          existing=$(gh issue list --state open --search "\"$title\" in:title" \
+            --json number,title --jq "[.[] | select(.title == \"$title\")][0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+          # The issue is the signal; don't fail the job (avoids failure emails).
+          exit 0
